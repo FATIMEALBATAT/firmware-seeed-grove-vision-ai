@@ -66,6 +66,7 @@
 #define EI_CLASSIFIER_LAST_LAYER_TAO_SSD               8
 #define EI_CLASSIFIER_LAST_LAYER_TAO_YOLOV3            9
 #define EI_CLASSIFIER_LAST_LAYER_TAO_YOLOV4            10
+#define EI_CLASSIFIER_LAST_LAYER_YOLOV2                11
 
 #define EI_CLASSIFIER_IMAGE_SCALING_NONE          0
 #define EI_CLASSIFIER_IMAGE_SCALING_0_255         1
@@ -164,6 +165,8 @@ typedef struct {
     uint8_t output_data_tensor;
     uint8_t output_labels_tensor;
     uint8_t output_score_tensor;
+    /* object detection and visual AD */
+    float threshold;
     /* tflite graph params */
     bool quantized;
     bool compiled;
@@ -218,10 +221,7 @@ typedef struct ei_impulse {
     ei_model_dsp_t *dsp_blocks;
 
     /* object detection */
-    bool object_detection;
     uint16_t object_detection_count;
-    float object_detection_threshold;
-    int8_t object_detection_last_layer;
     uint32_t fomo_output_size;
     uint32_t tflite_output_features_count;
 

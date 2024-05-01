@@ -24,6 +24,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 #define EI_CLASSIFIER_NONE                       255
 #define EI_CLASSIFIER_UTENSOR                    1
@@ -57,20 +58,20 @@
 #define EI_CLASSIFIER_DATATYPE_UINT8             3
 #define EI_CLASSIFIER_DATATYPE_INT8              9
 
-#define EI_CLASSIFIER_PROJECT_ID                 96
-#define EI_CLASSIFIER_PROJECT_OWNER              "Edge Impulse Profiling"
-#define EI_CLASSIFIER_PROJECT_NAME               "Demo: Constrained Object Detection"
-#define EI_CLASSIFIER_PROJECT_DEPLOY_VERSION     1
-#define EI_CLASSIFIER_NN_INPUT_FRAME_SIZE        27648
-#define EI_CLASSIFIER_RAW_SAMPLE_COUNT           9216
+#define EI_CLASSIFIER_PROJECT_ID                 387643
+#define EI_CLASSIFIER_PROJECT_OWNER              "Fatime"
+#define EI_CLASSIFIER_PROJECT_NAME               "fatime"
+#define EI_CLASSIFIER_PROJECT_DEPLOY_VERSION     4
+#define EI_CLASSIFIER_NN_INPUT_FRAME_SIZE        110592
+#define EI_CLASSIFIER_RAW_SAMPLE_COUNT           36864
 #define EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME      1
 #define EI_CLASSIFIER_DSP_INPUT_FRAME_SIZE       (EI_CLASSIFIER_RAW_SAMPLE_COUNT * EI_CLASSIFIER_RAW_SAMPLES_PER_FRAME)
-#define EI_CLASSIFIER_INPUT_WIDTH                96
-#define EI_CLASSIFIER_INPUT_HEIGHT               96
+#define EI_CLASSIFIER_INPUT_WIDTH                192
+#define EI_CLASSIFIER_INPUT_HEIGHT               192
 #define EI_CLASSIFIER_INPUT_FRAMES               1
-#define EI_CLASSIFIER_NN_OUTPUT_COUNT            288
+#define EI_CLASSIFIER_NN_OUTPUT_COUNT            25245
 #define EI_CLASSIFIER_INTERVAL_MS                1
-#define EI_CLASSIFIER_LABEL_COUNT                1
+#define EI_CLASSIFIER_LABEL_COUNT                6
 #define EI_CLASSIFIER_HAS_ANOMALY                EI_ANOMALY_TYPE_UNKNOWN
 #define EI_CLASSIFIER_HAS_VISUAL_ANOMALY         0
 #define EI_CLASSIFIER_SINGLE_FEATURE_INPUT       1
@@ -79,14 +80,13 @@
 
 
 #define EI_CLASSIFIER_OBJECT_DETECTION             1
-#define EI_CLASSIFIER_OBJECT_DETECTION_LAST_LAYER  EI_CLASSIFIER_LAST_LAYER_FOMO
+#define EI_CLASSIFIER_OBJECT_DETECTION_LAST_LAYER  EI_CLASSIFIER_LAST_LAYER_YOLOV5
 #warning 'EI_CLASSFIER_OBJECT_DETECTION_COUNT' is used for the guaranteed minimum number of objects detected. To get all objects during inference use 'bounding_boxes_count' from the 'ei_impulse_result_t' struct instead.
 #define EI_CLASSIFIER_OBJECT_DETECTION_COUNT       10
-#define EI_CLASSIFIER_OBJECT_DETECTION_THRESHOLD   0.55
+#define EI_CLASSIFIER_OBJECT_DETECTION_THRESHOLD   0.2
 #define EI_CLASSIFIER_TFLITE_OUTPUT_DATA_TENSOR    0
 #define EI_CLASSIFIER_TFLITE_OUTPUT_LABELS_TENSOR  1
 #define EI_CLASSIFIER_TFLITE_OUTPUT_SCORE_TENSOR   2
-
 
 #define EI_CLASSIFIER_TFLITE_INPUT_DATATYPE         EI_CLASSIFIER_DATATYPE_INT8
 #define EI_CLASSIFIER_TFLITE_OUTPUT_DATATYPE        EI_CLASSIFIER_DATATYPE_INT8
@@ -96,21 +96,13 @@
 
 #define EI_CLASSIFIER_QUANTIZATION_ENABLED          1
 
-#define EI_CLASSIFIER_COMPILED                      1
+#define EI_CLASSIFIER_COMPILED                      0
 #define EI_CLASSIFIER_HAS_TFLITE_OPS_RESOLVER       0
 
-#define EI_CLASSIFIER_LOAD_IMAGE_SCALING         0
+#define EI_CLASSIFIER_LOAD_IMAGE_SCALING         1
 
 
-#define EI_CLASSIFIER_HAS_FFT_INFO               1
-#define EI_CLASSIFIER_LOAD_FFT_32                0
-#define EI_CLASSIFIER_LOAD_FFT_64                0
-#define EI_CLASSIFIER_LOAD_FFT_128               0
-#define EI_CLASSIFIER_LOAD_FFT_256               0
-#define EI_CLASSIFIER_LOAD_FFT_512               0
-#define EI_CLASSIFIER_LOAD_FFT_1024              0
-#define EI_CLASSIFIER_LOAD_FFT_2048              0
-#define EI_CLASSIFIER_LOAD_FFT_4096              0
+#define EI_CLASSIFIER_HAS_FFT_INFO               0
 
 #define EI_DSP_PARAMS_GENERATED 1
 
@@ -125,8 +117,8 @@
 #define EI_CLASSIFIER_SLICE_SIZE                 (EI_CLASSIFIER_RAW_SAMPLE_COUNT / EI_CLASSIFIER_SLICES_PER_MODEL_WINDOW)
 
 #define EI_STUDIO_VERSION_MAJOR             1
-#define EI_STUDIO_VERSION_MINOR             42
-#define EI_STUDIO_VERSION_PATCH             2
+#define EI_STUDIO_VERSION_MINOR             49
+#define EI_STUDIO_VERSION_PATCH             19
 
 #if ((EI_CLASSIFIER_INFERENCING_ENGINE == EI_CLASSIFIER_TFLITE) ||      (EI_CLASSIFIER_INFERENCING_ENGINE == EI_CLASSIFIER_DRPAI)) &&      EI_CLASSIFIER_USE_FULL_TFLITE == 1
 
@@ -142,6 +134,11 @@
 #error "Cannot use full TensorFlow Lite with EON"
 #endif
 #endif // ((EI_CLASSIFIER_INFERENCING_ENGINE == EI_CLASSIFIER_TFLITE) || (EI_CLASSIFIER_INFERENCING_ENGINE == EI_CLASSIFIER_DRPAI)) && EI_CLASSIFIER_USE_FULL_TFLITE == 1
+
+typedef struct {
+    const char *name;
+    int axis;
+} ei_dsp_named_axis_t;
 
 typedef struct {
     uint32_t block_id;
@@ -162,6 +159,8 @@ typedef struct {
     uint32_t block_id;
     uint16_t implementation_version;
     int axes;
+    ei_dsp_named_axis_t * named_axes;
+    size_t named_axes_size;
     const char * channels;
 } ei_dsp_config_image_t;
 
@@ -169,6 +168,8 @@ typedef struct {
     uint32_t block_id;
     uint16_t implementation_version;
     int axes;
+    ei_dsp_named_axis_t * named_axes;
+    size_t named_axes_size;
     int num_cepstral;
     float frame_length;
     float frame_stride;
@@ -185,6 +186,8 @@ typedef struct {
     uint32_t block_id;
     uint16_t implementation_version;
     int axes;
+    ei_dsp_named_axis_t * named_axes;
+    size_t named_axes_size;
     float frame_length;
     float frame_stride;
     int num_filters;
@@ -227,6 +230,8 @@ typedef struct {
     uint32_t block_id;
     uint16_t implementation_version;
     int axes;
+    ei_dsp_named_axis_t * named_axes;
+    size_t named_axes_size;
     float frame_length;
     float frame_stride;
     int fft_length;
@@ -238,6 +243,8 @@ typedef struct {
     uint32_t block_id;
     uint16_t implementation_version;
     int axes;
+    ei_dsp_named_axis_t * named_axes;
+    size_t named_axes_size;
     float frame_length;
     float frame_stride;
     int num_filters;
