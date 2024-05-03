@@ -30,6 +30,22 @@
 #include "edge-impulse-sdk/porting/ei_logging.h"
 #include <memory>
 
+ // Define the top of the image and the number of columns
+static int TOP_Y = 50;
+static int NUM_COLS = 5;
+static int COL_WIDTH = EI_CLASSIFIER_INPUT_WIDTH / NUM_COLS;
+static int MAX_ITEMS = 10;
+
+// Define the factor of the width/height which determines the threshold
+// for detection of the object's movement between frames:
+static float DETECT_FACTOR = 1.5;
+
+// Initialize variables
+std::vector<int> count(NUM_COLS, 0);
+int countsum =0;
+int notfoundframes = 0;
+std::vector<std::vector<ei_impulse_result_bounding_box_t> > previous_blobs(NUM_COLS);
+
 #if EI_CLASSIFIER_HAS_ANOMALY
 #include "inferencing_engines/anomaly.h"
 #endif
@@ -102,22 +118,50 @@ __attribute__((unused)) void display_results(ei_impulse_result_t* result)
     // print the predictions
     ei_printf("Predictions (DSP: %d ms., Classification: %d ms., Anomaly: %d ms.): \n",
                 result->timing.dsp, result->timing.classification, result->timing.anomaly);
+
+
+
 #if EI_CLASSIFIER_OBJECT_DETECTION == 1
-    ei_printf("#Object detection results:\r\n");
     bool bb_found = result->bounding_boxes[0].value > 0;
+    std::vector<std::vector<ei_impulse_result_bounding_box_t> > current_blobs(NUM_COLS);
     for (size_t ix = 0; ix < result->bounding_boxes_count; ix++) {
         auto bb = result->bounding_boxes[ix];
         if (bb.value == 0) {
             continue;
         }
-        ei_printf("    %s (", bb.label);
-        ei_printf_float(bb.value);
-        ei_printf(") [ x: %u, y: %u, width: %u, height: %u ]\n", bb.x, bb.y, bb.width, bb.height);
+        // Check which column the blob is in
+        int col = int(bb.x / COL_WIDTH);
+        // Check if blob is within DETECT_FACTOR*h of a blob detected in the previous frame and treat as the same object
+        for (auto blob : previous_blobs[col]) {
+            if (abs(int(bb.x - blob.x)) < DETECT_FACTOR * (bb.width + blob.width) && abs(int(bb.y - blob.y)) < DETECT_FACTOR * (bb.height + blob.height)) {
+                // Check this blob has "moved" across the Y threshold
+                if (blob.y >= TOP_Y && bb.y < TOP_Y) {
+                    // Increment count for this column if blob has left the top of the image
+                    count[col]++;
+                    countsum++;
+                }
+            }
+        }
+        // Add current blob to list
+        current_blobs[col].push_back(bb);
+        ei_printf("    %s (%f) [ x: %u, y: %u, width: %u, height: %u ]\n", bb.label, bb.value, bb.x, bb.y, bb.width, bb.height);
+    }
+    previous_blobs = std::move(current_blobs);
+    if (bb_found) { 
+        ei_printf("    Count: %d\n",countsum);
+        notfoundframes = 0;
+    }
+    else {
+        notfoundframes ++;
+        if (notfoundframes == 1){
+            ei_printf("    No objects found\n");
+        }
+        else {
+            ei_printf("    Count: %d\n",countsum);
+        }
     }
 
-    if (!bb_found) {
-        ei_printf("    No objects found\n");
-    }
+
 
 #elif (EI_CLASSIFIER_LABEL_COUNT == 1) && (!EI_CLASSIFIER_HAS_ANOMALY)// regression
     ei_printf("#Regression results:\r\n");

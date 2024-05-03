@@ -18,8 +18,6 @@
 /* Include ----------------------------------------------------------------- */
 #include <cstdlib>
 #include <cstdio>
-#include <vector>
-#include <cmath>
 #include "board_config.h"
 #include "hx_drv_timer.h"
 #include "hx_drv_uart.h"
@@ -28,7 +26,6 @@
 #include "console_io.h"
 #include "debugger.h"
 #include "external_flash.h"
-
 
 extern "C" {
 #include "datapath.h"
@@ -42,7 +39,7 @@ extern "C" {
 #include "firmware-sdk/at_base64_lib.h"
 #include "firmware-sdk/at-server/ei_at_server.h"
 #include "firmware-sdk/at-server/ei_at_command_set.h"
-#include "edge_impulse_sensecap.h"
+
 #include "ei_camera_himax.h"
 #include "ei_device_sense_cap.h"
 #include "ei_at_handlers.h"
@@ -51,82 +48,57 @@ extern "C" {
 
 static DEV_UART *console_uart;
 
-struct Point {
-    float x;
-    float y;
-};
-
-struct Rect {
-    int x;
-    int y;
-    int width;
-    int height;
-};
-
-struct Car {
-    int id;
-    Point centroid;
-    bool isNew;  // Flag to indicate if this car has been announced
-};
-
-std::vector<Car> trackedCars;
-int nextCarID = 0;  // Global ID counter for new cars
-
-Point calculateCentroid(const Rect& rect) {
-    return Point{rect.x + rect.width / 2.0f, rect.y + rect.height / 2.0f};
-}
-
-void updateCarTracking(const std::vector<Rect>& detections, float distanceThreshold = 50.0f) {
-    bool newCarDetected = false;
-
-    for (const auto& det : detections) {
-        Point newCentroid = calculateCentroid(det);
-        bool found = false;
-
-        for (auto& car : trackedCars) {
-            float distance = sqrt(pow(car.centroid.x - newCentroid.x, 2) + pow(car.centroid.y - newCentroid.y, 2));
-            if (distance < distanceThreshold) {
-                car.centroid = newCentroid;  // Update centroid
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            trackedCars.push_back({nextCarID++, newCentroid, true});
-            newCarDetected = true;
-        }
-    }
-
-    // Announce new cars detected in this cycle
-    if (newCarDetected) {
-        int count = trackedCars.size();  // Total unique cars detected so far
-        printf("New car detected! Total cars tracked: %d\n", count);
-    }
-}
-
 extern "C" int edge_impulse_sensecap(void)
 {
-    hx_drv_timer_init();
-    static DEV_UART *console_uart = hx_drv_uart_get_dev((USE_SS_UART_E)CONSOLE_UART_ID);
-    
-    std::vector<Rect> detections;  // Placeholder for real detection logic
     char c;
+    ATServer *at;
+    I2CServer *i2c;
+    
+    EiDeviceSenseCap* dev = static_cast<EiDeviceSenseCap*>(EiDeviceInfo::get_device());
+    EiCameraHimax* cam = static_cast<EiCameraHimax*>(EiCameraHimax::get_camera());
 
-    while (true) {
+    hx_drv_timer_init();
+    debugger_init();
+    webusb_init();
+    external_flash_xip_enable();
+    console_uart = hx_drv_uart_get_dev((USE_SS_UART_E)CONSOLE_UART_ID);
+
+    dev->set_state(eiStateFinished);
+    ei_printf("Edge Impulse firmware for Seeed Studio SenseCAP\n");
+
+    i2c = ei_i2c_init(dev);
+
+    at = ei_at_init(dev);
+    at->print_prompt();
+
+    while (1) {
         if(console_uart->uart_read_nonblock((void*)&c, 1) != 0) {
-            // Handle UART commands or system queries here
+            if(is_inference_running() && c == 'b') {
+                ei_stop_impulse();
+                at->print_prompt();
+                continue;
+            }
+
+            if(cam->is_stream_active() && c =='b') {
+                cam->stop_stream();
+                at->print_prompt();
+                continue;
+            }
+            at->handle(c);
         }
 
-        // Simulate a detection update; replace with actual sensor/model output handling
-        detections.push_back({100, 100, 50, 50}); // Example: Simulated detection
+        if(cam->is_stream_active()) {
+            cam->run_stream();
+        }
 
-        // Update tracking and manage detection announcements
-        updateCarTracking(detections);
+        if(is_inference_running() == true) {
+            ei_run_impulse();
+        }
 
-        // Clear detections after processing
-        detections.clear();
+        // Handle I2C commands
+        i2c->task(nullptr);
     }
 
     return 0;
+
 }
